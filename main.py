@@ -578,7 +578,7 @@ async def api_call(action, params=""):
             print(f"Erro na API ({action}): {e}")
             return []
 
-@app.route('/', methods=['GET', 'POST'])
+@app.route('/', methods=['GET', 'POST'], strict_slashes=False)
 async def index():
     if request.method == 'POST':
         m3u = request.form.get('m3u', '')
@@ -605,7 +605,7 @@ async def index():
 # --- CACHE GLOBAL PARA PERFORMANCE ---
 CACHE = {"movies": [], "series": [], "timestamp": 0, "user": ""}
 
-@app.route('/dashboard')
+@app.route('/dashboard', strict_slashes=False)
 async def dashboard():
     if 'user_data' not in session: return redirect(url_for('index'))
     search = request.args.get('search', '').lower()
@@ -640,22 +640,22 @@ async def dashboard():
                                 search_term=search,
                                 active_cat=cat)
 
-@app.route('/series_info/<id>')
+@app.route('/series_info/<id>', strict_slashes=False)
 async def series_info(id):
     res = await api_call("get_series_info", f"&series_id={id}")
     return jsonify(res if isinstance(res, dict) else {"episodes": {}})
 
-@app.route('/vod_info/<id>')
+@app.route('/vod_info/<id>', strict_slashes=False)
 async def vod_info(id):
     res = await api_call("get_vod_info", f"&vod_id={id}")
     return jsonify(res if isinstance(res, dict) else {})
 
-@app.route('/logout')
+@app.route('/logout', strict_slashes=False)
 def logout(): 
     session.clear()
     return redirect(url_for('index'))
 
-@app.route('/watch')
+@app.route('/watch', strict_slashes=False)
 async def watch():
     if 'user_data' not in session: return "Acesso não autorizado", 403
     url = request.args.get('url')
