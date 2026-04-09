@@ -160,7 +160,7 @@ HTML_LAYOUT = """
 
     <div class="grid">
         {% for item in content %}
-        <div class="card" onclick="openMedia('{{ item.type }}', '{{ item.series_id or item.stream_id }}', '{{ item.name }}', '{{ item.container_extension }}')">
+        <div class="card" onclick="console.log('Clicou em:', '{{ item.name|replace("'", "\\'") }}'); openMedia('{{ item.type }}', '{{ item.series_id or item.stream_id }}', '{{ item.name|replace("'", "\\'") }}', '{{ item.container_extension }}')">
             <img src="{{ item.stream_icon or item.cover }}" class="card-img" loading="lazy" onerror="this.src='https://via.placeholder.com/200x300/111/fff?text=No+Cover'">
             <div class="card-action">
                 <div class="circle-btn"><i class="fas fa-play"></i></div>
@@ -250,6 +250,7 @@ HTML_LAYOUT = """
             
             const r = await fetch(`/series_info/${id}`);
             const data = await r.json();
+            console.log('Série carregada:', data);
             renderSeries(data, name);
         }
 
@@ -291,6 +292,7 @@ HTML_LAYOUT = """
         }
 
         async function playVideo(url, name, id, type) {
+            console.log('Iniciando playVideo:', {url, name, id, type});
             let subUrl = "";
             const modal = document.getElementById('mediaModal');
             const playerView = document.getElementById('playerView');
