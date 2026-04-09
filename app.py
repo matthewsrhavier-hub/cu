@@ -220,22 +220,25 @@ HTML_LAYOUT = """
         }
 
         async function openMedia(type, id, name, ext) {
+            console.log('Abrindo Media:', type, id, name);
+            
+            const dns = "{{ user.dns if user else '' }}";
+            const user = "{{ user.user if user else '' }}";
+            const pass = "{{ user.pass if user else '' }}";
+
             if (type === 'live') {
-                {% if user %}
-                const url = `{{ user.dns }}/live/{{ user.user }}/{{ user.pass }}/${id}.ts`;
+                const url = `${dns}/live/${user}/${pass}/${id}.ts`;
                 playVideo(url, name);
-                {% endif %}
                 return;
             }
             
             if (type === 'movie') {
-                {% if user %}
-                const url = `{{ user.dns }}/movie/{{ user.user }}/{{ user.pass }}/${id}.${ext || 'mp4'}`;
+                const url = `${dns}/movie/${user}/${pass}/${id}.${ext || 'mp4'}`;
                 playVideo(url, name, id, 'movie');
-                {% endif %}
                 return;
             }
 
+            // Para Séries
             const modal = document.getElementById('mediaModal');
             document.getElementById('mediaTitle').innerText = name;
             document.getElementById('mediaStatus').innerText = 'Série Multi-Season';
@@ -248,13 +251,14 @@ HTML_LAYOUT = """
             epArea.innerHTML = ""; sContainer.innerHTML = "";
             playerView.innerHTML = `<div style="text-align:center; color:var(--text-dim);"><i class="fas fa-tv" style="font-size:60px; margin-bottom:20px;"></i><p>Escolha um episódio para assistir agora</p></div>`;
             
-            const r = await fetch(`/series_info/${id}`);
-            const data = await r.json();
-            console.log('Série carregada:', data);
-            renderSeries(data, name);
+            try {
+                const r = await fetch(`/series_info/${id}`);
+                const data = await r.json();
+                renderSeries(data, name, dns, user, pass);
+            } catch(e) { console.error('Erro ao buscar série:', e); }
         }
 
-        function renderSeries(data, seriesName) {
+        function renderSeries(data, seriesName, dns, user, pass) {
             const sContainer = document.getElementById('seasonContainer');
             const epList = data.episodes || {};
             
@@ -265,26 +269,26 @@ HTML_LAYOUT = """
                 btn.onclick = () => {
                     document.querySelectorAll('.s-btn').forEach(b => b.classList.remove('active'));
                     btn.classList.add('active');
-                    showEpisodes(epList[s], seriesName, s);
+                    showEpisodes(epList[s], seriesName, s, dns, user, pass);
                 };
                 sContainer.appendChild(btn);
             });
-            if(Object.keys(epList).length > 0) showEpisodes(epList[Object.keys(epList)[0]], seriesName, Object.keys(epList)[0]);
+            if(Object.keys(epList).length > 0) showEpisodes(epList[Object.keys(epList)[0]], seriesName, Object.keys(epList)[0], dns, user, pass);
         }
 
-        function showEpisodes(eps, seriesName, sNum) {
+        function showEpisodes(eps, seriesName, sNum, dns, user, pass) {
             const epArea = document.getElementById('epArea');
             epArea.innerHTML = "";
             eps.forEach(ep => {
                 const ext = ep.container_extension || 'mp4';
-                const epUrl = `{{ user.dns }}/series/{{ user.user }}/{{ user.pass }}/${ep.id}.${ext}`;
+                const epUrl = `${dns}/series/${user}/${pass}/${ep.id}.${ext}`;
                 const nameFinal = `${seriesName} S${String(sNum).padStart(2,'0')}E${String(ep.episode_num).padStart(2,'0')}`;
                 
                 const div = document.createElement('div');
                 div.className = "ep-card";
                 div.innerHTML = `
                     <div class="ep-num">${String(ep.episode_num).padStart(2,'0')}</div>
-                    <div class="ep-title" onclick="playVideo('${epUrl}', '${nameFinal}', '${ep.id}', 'movie')">${ep.title || 'Episódio ' + ep.episode_num}</div>
+                    <div class="ep-title" onclick="playVideo('${epUrl}', '${nameFinal}', '${ep.id}', 'series')">${ep.title || 'Episódio ' + ep.episode_num}</div>
                     <div class="ep-dl" onclick="triggerDownload('${epUrl}', '${nameFinal}')"><i class="fas fa-download"></i></div>
                 `;
                 epArea.appendChild(div);
@@ -297,7 +301,6 @@ HTML_LAYOUT = """
             const modal = document.getElementById('mediaModal');
             const playerView = document.getElementById('playerView');
             
-            // Tenta buscar informações extras (legendas)
             try {
                 const action = type === 'series' ? 'series_info' : 'vod_info';
                 const r = await fetch(`/${action}/${id}`);
@@ -307,9 +310,8 @@ HTML_LAYOUT = """
                     const ptSub = subList.find(s => s.language && s.language.toLowerCase().includes('por'));
                     subUrl = ptSub ? ptSub.location : subList[0].location;
                 }
-            } catch(e) {}
+            } catch(e) { console.log('Sem legendas extras'); }
 
-            // Abre o modal se for filme (a série já abre o modal antes)
             if (type === 'movie') {
                 document.getElementById('mediaTitle').innerText = name;
                 document.getElementById('mediaStatus').innerText = 'Filme Premium';
@@ -318,11 +320,8 @@ HTML_LAYOUT = """
                 modal.style.display = 'flex';
             }
 
-            // Injeta o player na mesma tela via iFrame (mais seguro para layouts complexos)
             const playerUrl = `/watch?url=${encodeURIComponent(url)}&name=${encodeURIComponent(name)}&sub=${encodeURIComponent(subUrl)}`;
-            playerView.innerHTML = `
-                <iframe src="${playerUrl}" style="width:100%; height:100%; border:none;" allow="autoplay; fullscreen; picture-in-picture"></iframe>
-            `;
+            playerView.innerHTML = `<iframe src="${playerUrl}" style="width:100%; height:100%; border:none;" allow="autoplay; fullscreen; picture-in-picture"></iframe>`;
         }
 
         function closeModal() {
@@ -570,14 +569,18 @@ async def api_call(action, params=""):
     u = session.get('user_data')
     if not u: return []
     url = f"{u['dns']}/player_api.php?username={u['user']}&password={u['pass']}&action={action}{params}"
+    print(f"[API] Chamando: {action}")
     async with aiohttp.ClientSession(headers=HEADERS) as s:
         try:
-            async with s.get(url, ssl=False, timeout=15) as r:
+            async with s.get(url, ssl=False, timeout=60) as r:
                 if r.status == 200:
-                    return await r.json()
+                    data = await r.json()
+                    print(f"[API] Sucesso: {action} (Recebido: {len(data) if isinstance(data, list) else 'Objeto/Erro'})")
+                    return data
+                print(f"[API] Erro de Status: {r.status} em {action}")
                 return []
         except Exception as e:
-            print(f"Erro na API ({action}): {e}")
+            print(f"[API] Erro Crítico ({action}): {e}")
             return []
 
 @app.route('/', methods=['GET', 'POST'], strict_slashes=False)
@@ -624,6 +627,7 @@ async def dashboard():
         CACHE["series"] = s if isinstance(s, list) else []
         CACHE["timestamp"] = current_time
         CACHE["user"] = u['user']
+        print(f"[DASHBOARD] Itens em Cache: {len(CACHE['movies'])} filmes, {len(CACHE['series'])} séries")
         for x in CACHE["movies"]: x['type'] = 'movie'
         for x in CACHE["series"]: x['type'] = 'series'
 
