@@ -297,7 +297,7 @@ HTML_LAYOUT = """
             
             // Tenta buscar informações extras (legendas)
             try {
-                const action = type === 'series' ? 'get_series_info' : 'get_vod_info';
+                const action = type === 'series' ? 'series_info' : 'vod_info';
                 const r = await fetch(`/${action}/${id}`);
                 const data = await r.json();
                 const subList = (data.info && data.info.subtitles) || (data.movie_data && data.movie_data.subtitles) || data.subtitles || [];
