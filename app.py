@@ -215,7 +215,7 @@ HTML_LAYOUT = """
         function triggerDownload(url, filename) {
             const a = document.createElement('a');
             a.href = url;
-            a.download = filename.replace(/[/\\?%*:|"<>]/g, '-') + ".mp4";
+            a.download = filename.replace(/[\\\/ \?% \*:|"<>]/g, '-') + ".mp4";
             a.click();
         }
 
